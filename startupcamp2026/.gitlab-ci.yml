@@ -1,0 +1,131 @@
+# Runs on every push. Jobs are tagged `otmetka` so only the owner's
+# GitLab Runner picks them up, not GitLab.com shared runners.
+# Runner setup: docs/ci.md
+#
+# Postgres and Redis are GitLab services on the job network. Tests do not
+# publish ports on the runner host and do not need the Docker socket.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+default:
+  tags:
+    - otmetka
+  interruptible: true
+
+variables:
+  # Sidecar Postgres/Redis instead of Testcontainers (see IntegrationTest / conftest).
+  OTMETKA_TEST_DATABASE: service
+
+.wait_tcp: &wait_tcp |
+  wait_tcp() {
+    host=$1
+    port=$2
+    i=0
+    while [ "$i" -lt 60 ]; do
+      (echo >/dev/tcp/"$host"/"$port") >/dev/null 2>&1 && return 0
+      i=$((i + 1))
+      sleep 1
+    done
+    echo "timeout waiting for $host:$port" >&2
+    return 1
+  }
+
+core:
+  stage: test
+  image: eclipse-temurin:21-jdk
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    POSTGRES_DB: testdb
+    DATABASE_URL: jdbc:postgresql://postgres:5432/testdb
+    DATABASE_USER: test
+    DATABASE_PASSWORD: test
+    REDIS_HOST: redis
+  cache:
+    key: gradle-$CI_COMMIT_REF_SLUG
+    paths:
+      - .gradle/caches/
+      - .gradle/wrapper/
+  before_script:
+    - *wait_tcp
+    - wait_tcp postgres 5432
+    - wait_tcp redis 6379
+  script:
+    - cd services/core && ./gradlew --no-daemon build
+
+notifier:
+  stage: test
+  image: python:3.12-bookworm
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    POSTGRES_DB: testdb
+    DATABASE_URL: postgresql+psycopg://test:test@postgres:5432/testdb
+  cache:
+    key: uv-$CI_COMMIT_REF_SLUG
+    paths:
+      - services/notifier/.venv/
+  before_script:
+    - *wait_tcp
+    - wait_tcp postgres 5432
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+  script:
+    - uv sync --frozen --directory services/notifier
+    - uv run --directory services/notifier pytest
+
+web:
+  stage: test
+  image: node:24-bookworm
+  cache:
+    key: npm-$CI_COMMIT_REF_SLUG
+    paths:
+      - apps/web/.npm/
+  script:
+    - cd apps/web && npm ci --cache .npm --prefer-offline && npm test && npm run build
+
+# Empty Postgres sidecar: init-roles.sh, Flyway and Alembic twice, then
+# table lists and that core cannot read notifier (and the reverse).
+migrations:
+  stage: test
+  image: python:3.12-bookworm
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: ci-postgres-password
+    POSTGRES_DB: otmetka
+    CORE_DB_PASSWORD: ci-core-password
+    NOTIFIER_DB_PASSWORD: ci-notifier-password
+    PGHOST: postgres
+    PGUSER: postgres
+    PGPASSWORD: ci-postgres-password
+    PGDATABASE: otmetka
+  cache:
+    key: uv-$CI_COMMIT_REF_SLUG
+    paths:
+      - services/notifier/.venv/
+  before_script:
+    - *wait_tcp
+    - wait_tcp postgres 5432
+    - apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client curl ca-certificates
+    - curl -fsSL -o /tmp/flyway.tgz https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/10.22.0/flyway-commandline-10.22.0-linux-x64.tar.gz
+    - tar -xzf /tmp/flyway.tgz -C /tmp
+    - export PATH="/tmp/flyway-10.22.0:$HOME/.local/bin:$PATH"
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+  script:
+    - uv sync --frozen --directory services/notifier
+    - infra/scripts/check-migrations.sh

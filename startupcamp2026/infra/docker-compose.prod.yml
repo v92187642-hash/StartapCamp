@@ -1,0 +1,34 @@
+# Server settings, layered over docker-compose.yml:
+#
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d --build
+#
+# Still no host port bindings: the platform (Dokploy) maps `web:80`.
+# Secrets stay required by the base file.
+services:
+  postgres:
+    restart: unless-stopped
+
+  rabbitmq:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  core:
+    restart: unless-stopped
+    environment:
+      WEB_BASE_URL: https://${DOMAIN:?set DOMAIN in infra/.env}
+      SEED_TEST_ACCOUNTS: ${SEED_TEST_ACCOUNTS:-false}
+      MAIL_ENABLED: "true"
+      MAIL_HOST: ${MAIL_HOST:?set MAIL_HOST in infra/.env}
+      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM in infra/.env}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-true}
+
+  notifier:
+    restart: unless-stopped
+    environment:
+      PUSH_DRY_RUN: "false"
+
+  web:
+    restart: unless-stopped

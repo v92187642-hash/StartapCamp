@@ -1,0 +1,7 @@
+# Used when the build context is the repository root (the web image).
+**/node_modules
+**/dist
+**/build
+**/.gradle
+**/.venv
+.git

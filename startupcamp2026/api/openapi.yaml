@@ -1,0 +1,1091 @@
+openapi: 3.0.3
+info:
+  title: Отметка — public API
+  version: 0.1.0
+  description: |
+    Public API served by `core`. Source of truth: change this file first, then
+    the code. The web and Android clients are generated from it.
+
+    Conventions:
+    - All timestamps are UTC, ISO 8601 (`2026-10-09T07:00:00Z`).
+    - Ids are UUIDs.
+    - Errors use `application/problem+json` (RFC 7807); `detail` is Russian
+      text that may be shown to the user.
+    - No drug names, dosages or diagnoses anywhere. Labels are generic text
+      such as «Назначение 1».
+servers:
+  - url: http://localhost:8080
+    description: Local `core`
+tags:
+  - name: system
+  - name: auth
+  - name: plans
+  - name: diary
+  - name: sharing
+  - name: questions
+  - name: devices
+  - name: reports
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: Liveness check
+      security: []
+      responses:
+        "200":
+          description: The service is up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      summary: Create an account with an email and a password
+      description: |
+        The answer already carries tokens, so the client is logged in at once.
+        The address is not confirmed by email.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "201":
+          description: Account created, tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tokens"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: An account with this email already exists
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      summary: Exchange email and password for tokens
+      description: |
+        An unknown email and a wrong password get the same answer. After ten
+        failed attempts for one email, further attempts are refused for 15
+        minutes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200":
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tokens"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Wrong email or password
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      summary: Revoke one refresh token
+      description: Idempotent. The presented refresh token stops working. Access tokens already issued stay valid until they expire.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "204":
+          description: Revoked, or the token was already unused
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /auth/logout-all:
+    post:
+      tags: [auth]
+      operationId: logoutAll
+      summary: Revoke every refresh token of the caller
+      description: Other devices must log in again. Access tokens already issued stay valid until they expire (at most 15 minutes).
+      responses:
+        "204":
+          description: All refresh tokens revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshToken
+      summary: Refresh the access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tokens"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /consents:
+    post:
+      tags: [auth]
+      operationId: recordConsent
+      summary: Record consent to personal-data processing
+      description: |
+        Required before any plan data is stored. Until a consent exists, every
+        plan endpoint answers 403 with problem type `consent-required`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentRequest"
+      responses:
+        "201":
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Consent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: The caller's account
+      responses:
+        "200":
+          description: The account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me/delete:
+    post:
+      tags: [auth]
+      operationId: deleteAccount
+      summary: Delete the caller's account and all of its data
+      description: |
+        Withdraws consent. Removes the account, its plans with their entries,
+        marks, questions and invitations, the questions the caller wrote on
+        other people's plans, and the caller's access to those plans. It
+        cannot be undone. POST rather than DELETE so clients can send a JSON
+        body (the current password) with Retrofit and fetch. A stolen access
+        token is not enough.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordConfirm"
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /plans:
+    get:
+      tags: [plans]
+      operationId: listPlans
+      summary: Plans the caller owns or has an accepted share on
+      responses:
+        "200":
+          description: Plans, without items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Plan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [plans]
+      operationId: createPlan
+      summary: Create a plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanCreate"
+      responses:
+        "201":
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /plans/{planId}:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+    get:
+      tags: [plans]
+      operationId: getPlan
+      summary: Plan with its items
+      responses:
+        "200":
+          description: The plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /plans/{planId}/items:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+    post:
+      tags: [plans]
+      operationId: addPlanItem
+      summary: Add an item to a plan (owner only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanItemCreate"
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /plans/{planId}/entries:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+    get:
+      tags: [diary]
+      operationId: listEntries
+      summary: Day view
+      description: |
+        Entries of one calendar day in the plan's time zone, ordered by
+        `scheduledAt`. Entries are created when a plan item is added, for
+        every matching day from that moment to the end of the plan. "No mark" is not a stored status: a client shows an
+        entry as "no mark" when `status` is `planned` and `scheduledAt` is in
+        the past.
+      parameters:
+        - name: date
+          in: query
+          required: true
+          description: Calendar day in the plan's time zone
+          schema:
+            type: string
+            format: date
+        - name: days
+          in: query
+          required: false
+          description: |
+            How many days to return, starting at `date`. Clients that work
+            offline load a week at once.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 31
+            default: 1
+      responses:
+        "200":
+          description: Entries of that day, or of all requested days
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /entries/{entryId}/mark:
+    parameters:
+      - $ref: "#/components/parameters/EntryId"
+    put:
+      tags: [diary]
+      operationId: markEntry
+      summary: Mark an entry, or correct the time of an existing mark
+      description: |
+        Owner of the plan only. Idempotent: repeating the same request changes
+        nothing. Sending a different `markedAt` for an entry that is already
+        marked is a correction and sets `correctedAt`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkRequest"
+      responses:
+        "200":
+          description: The entry after the mark
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [diary]
+      operationId: unmarkEntry
+      summary: Undo a mark
+      description: |
+        Owner of the plan only. The entry returns to `planned` and
+        `correctedAt` records that a mark was withdrawn. Idempotent.
+      responses:
+        "200":
+          description: The entry after the undo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /plans/{planId}/shares:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+    get:
+      tags: [sharing]
+      operationId: listShares
+      summary: Who was invited to the plan (owner only)
+      responses:
+        "200":
+          description: Invitations, pending and accepted
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Share"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [sharing]
+      operationId: inviteRelative
+      summary: Invite a relative by email (owner only)
+      description: |
+        Sends an email with an invitation link that carries a one-time token.
+        In local development the link is written to the `core` log.
+        Premium: the caller's account must have `premium`; otherwise 403 with
+        problem type `premium-required`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareCreate"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Share"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /shares/{shareId}:
+    parameters:
+      - name: shareId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [sharing]
+      operationId: revokeShare
+      summary: Withdraw an invitation or a relative's access (owner only)
+      responses:
+        "204":
+          description: Access withdrawn
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /shares/accept:
+    post:
+      tags: [sharing]
+      operationId: acceptShare
+      summary: Accept an invitation
+      description: |
+        The caller becomes a read-only viewer of the plan. The logged-in
+        account's email must be the address the invitation was sent to.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareAccept"
+      responses:
+        "200":
+          description: Invitation accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Share"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Unknown, used, expired, or sent to a different address
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /plans/{planId}/questions:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+    get:
+      tags: [questions]
+      operationId: listQuestions
+      summary: Questions for the doctor, oldest first
+      responses:
+        "200":
+          description: Questions of the plan
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [questions]
+      operationId: addQuestion
+      summary: Add a question for the doctor
+      description: |
+        The owner and relatives may add questions. The product never answers
+        them: they are a list to take to the visit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuestionCreate"
+      responses:
+        "201":
+          description: Question added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /questions/{questionId}:
+    parameters:
+      - $ref: "#/components/parameters/QuestionId"
+    delete:
+      tags: [questions]
+      operationId: deleteQuestion
+      summary: Delete a question (its author or the plan owner)
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /questions/{questionId}/asked:
+    parameters:
+      - $ref: "#/components/parameters/QuestionId"
+    put:
+      tags: [questions]
+      operationId: markQuestionAsked
+      summary: Mark a question as asked (owner only)
+      responses:
+        "200":
+          description: The question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [questions]
+      operationId: markQuestionNotAsked
+      summary: Return a question to "not asked yet" (owner only)
+      responses:
+        "200":
+          description: The question
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /devices:
+    post:
+      tags: [devices]
+      operationId: registerDevice
+      summary: Register a push token of the caller's phone
+      description: |
+        Called by the Android app after login and whenever the push provider
+        issues a new token. Alerts about a relative's missed entries are sent
+        to these tokens. Registering the same token again is harmless.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceRegistration"
+      responses:
+        "204":
+          description: Registered
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /plans/{planId}/report:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+    get:
+      tags: [reports]
+      operationId: getReport
+      summary: PDF summary for a doctor's visit
+      description: |
+        Marks by day and the list of questions. Premium: the caller's account
+        must have `premium`; otherwise 403 with problem type `premium-required`.
+      parameters:
+        - name: from
+          in: query
+          required: false
+          description: First day, in the plan's time zone. Defaults to the start of the plan.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: Last day. Defaults to today or the end of the plan, whichever is earlier.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: The report
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token from `/auth/login` or `/auth/register`. The subject is the user id.
+
+  parameters:
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    QuestionId:
+      name: questionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EntryId:
+      name: entryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: The request is malformed or fails validation
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing, invalid or expired token
+    Forbidden:
+      description: The caller may not do this
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: No such resource
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    TooManyRequests:
+      description: Rate limit reached
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    Problem:
+      type: object
+      description: RFC 7807 problem details
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+          description: Russian text that may be shown to the user
+        instance:
+          type: string
+
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    PasswordConfirm:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          format: password
+
+    Tokens:
+      type: object
+      required: [accessToken, refreshToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          description: Lifetime of the access token in seconds
+
+    ConsentRequest:
+      type: object
+      required: [kind, textVersion]
+      properties:
+        kind:
+          type: string
+          enum: [personal_data]
+        textVersion:
+          type: string
+          description: Version of the consent text the user saw
+          example: "2026-10"
+
+    Consent:
+      type: object
+      required: [kind, textVersion, acceptedAt]
+      properties:
+        kind:
+          type: string
+          enum: [personal_data]
+        textVersion:
+          type: string
+        acceptedAt:
+          type: string
+          format: date-time
+
+    Me:
+      type: object
+      required: [id, email, premium, consentAccepted]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        premium:
+          type: boolean
+        consentAccepted:
+          type: boolean
+          description: False until `POST /consents`; plan endpoints answer 403 until then
+
+    PlanCreate:
+      type: object
+      required: [startsOn, endsOn, timezone]
+      properties:
+        title:
+          type: string
+          maxLength: 100
+          description: Defaults to «План N». Must not name a diagnosis or a drug.
+          example: План 1
+        startsOn:
+          type: string
+          format: date
+        endsOn:
+          type: string
+          format: date
+          description: Not before `startsOn` and at most 366 days after it
+        timezone:
+          type: string
+          description: IANA time zone name
+          example: Asia/Yekaterinburg
+        items:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/PlanItemCreate"
+
+    Plan:
+      type: object
+      required: [id, title, startsOn, endsOn, timezone, version, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        startsOn:
+          type: string
+          format: date
+        endsOn:
+          type: string
+          format: date
+        timezone:
+          type: string
+        version:
+          type: integer
+          format: int64
+          description: Grows on every change to the plan, its items or shares
+        role:
+          type: string
+          enum: [owner, viewer]
+          description: The caller's role on this plan
+        items:
+          type: array
+          description: Present on `GET /plans/{planId}` and on creation
+          items:
+            $ref: "#/components/schemas/PlanItem"
+
+    PlanItemCreate:
+      type: object
+      description: |
+        There is no label: the server names items «Назначение 1», «Назначение 2»
+        and so on, so that no drug name can be stored.
+      required: [timeOfDay, daysOfWeek]
+      properties:
+        timeOfDay:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          description: Local time in the plan's time zone, `HH:mm`
+          example: "08:00"
+        daysOfWeek:
+          type: array
+          description: ISO day numbers, 1 is Monday and 7 is Sunday
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+            maximum: 7
+
+    PlanItem:
+      type: object
+      required: [id, label, timeOfDay, daysOfWeek, position]
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        timeOfDay:
+          type: string
+        daysOfWeek:
+          type: array
+          items:
+            type: integer
+        position:
+          type: integer
+          description: Order of the item inside the plan, from 0
+
+    Entry:
+      type: object
+      required: [id, planId, planItemId, label, scheduledAt, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        planItemId:
+          type: string
+          format: uuid
+        label:
+          type: string
+          description: Label of the plan item
+        scheduledAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/EntryStatus"
+        markedAt:
+          type: string
+          format: date-time
+          description: When the prescription was followed, as stated by the user
+        markedBy:
+          type: string
+          format: uuid
+        correctedAt:
+          type: string
+          format: date-time
+          description: Set when a mark was changed or withdrawn after it was made
+
+    EntryStatus:
+      type: string
+      enum: [planned, marked]
+
+    MarkRequest:
+      type: object
+      properties:
+        markedAt:
+          type: string
+          format: date-time
+          description: Defaults to the current time. Must not be in the future.
+
+    ShareCreate:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    Share:
+      type: object
+      required: [id, planId, invitedEmail, role, status]
+      description: The invitation expires 7 days after it is sent.
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        invitedEmail:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [viewer]
+        status:
+          type: string
+          enum: [pending, accepted]
+
+    QuestionCreate:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    Question:
+      type: object
+      required: [id, planId, text, createdAt, mine]
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        askedAt:
+          type: string
+          format: date-time
+          description: Set once the question was asked at a visit
+        mine:
+          type: boolean
+          description: Whether the caller wrote the question
+
+    DeviceRegistration:
+      type: object
+      required: [provider, token]
+      properties:
+        provider:
+          type: string
+          enum: [fcm, rustore]
+          description: Firebase Cloud Messaging or RuStore Push
+        token:
+          type: string
+          maxLength: 4096
+
+    ShareAccept:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: One-time token from the invitation link

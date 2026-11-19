@@ -1,0 +1,94 @@
+# Same application as docker-compose.yml, but Postgres, Redis and RabbitMQ
+# run somewhere else (another Dokploy service, a managed database, …).
+#
+#   docker compose -f infra/docker-compose.external.yml up --build
+#
+# Put their addresses in infra/.env. Join the Docker network they already
+# use, or give hostnames that resolve from this stack:
+#
+#   OTMETKA_NETWORK=dokploy-postgres-net
+#   OTMETKA_NETWORK_EXTERNAL=true
+#   DATABASE_URL=jdbc:postgresql://postgres:5432/otmetka
+#   REDIS_HOST=redis
+#   RABBITMQ_HOST=rabbitmq
+#
+# No `ports:`. Named volumes are not used here; data lives in the external
+# services. Init of roles/schemas (infra/postgres/init-roles.sh) must already
+# have been applied on that Postgres.
+name: otmetka
+
+services:
+  core:
+    build: ../services/core
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in infra/.env}
+      DATABASE_USER: ${DATABASE_USER:?set DATABASE_USER in infra/.env}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD in infra/.env}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:?set RABBITMQ_HOST in infra/.env}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:?set RABBITMQ_USER in infra/.env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in infra/.env}
+      REDIS_HOST: ${REDIS_HOST:?set REDIS_HOST in infra/.env}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in infra/.env}
+      WEB_BASE_URL: ${WEB_BASE_URL:?set WEB_BASE_URL in infra/.env}
+      NOTIFIER_URL: ${NOTIFIER_URL:-http://notifier:8000}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET in infra/.env}
+      PREMIUM_ENFORCED: ${PREMIUM_ENFORCED:-true}
+      SEED_TEST_ACCOUNTS: ${SEED_TEST_ACCOUNTS:-false}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-false}
+      MAIL_SSL: ${MAIL_SSL:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@otmetka.local}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  notifier:
+    build: ../services/notifier
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${NOTIFIER_DATABASE_URL:?set NOTIFIER_DATABASE_URL in infra/.env}
+      RABBITMQ_URL: ${RABBITMQ_URL:?set RABBITMQ_URL in infra/.env}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET in infra/.env}
+      ALERT_GRACE_MINUTES: ${ALERT_GRACE_MINUTES:-30}
+      ALERT_POLL_SECONDS: ${ALERT_POLL_SECONDS:-30}
+      PUSH_DRY_RUN: ${PUSH_DRY_RUN:-true}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      RUSTORE_PROJECT_ID: ${RUSTORE_PROJECT_ID:-}
+      RUSTORE_SERVICE_TOKEN: ${RUSTORE_SERVICE_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+networks:
+  default:
+    name: ${OTMETKA_NETWORK:-otmetka}
+    external: ${OTMETKA_NETWORK_EXTERNAL:-false}

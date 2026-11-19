@@ -1,0 +1,64 @@
+*.log
+
+# Secrets and local config. Keep *.example tracked.
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.local
+*.pem
+*.p12
+google-services.json
+**/service-account*.json
+
+# Java / Gradle / Android
+build/
+.gradle/
+bin/
+out/
+*.class
+*.jar
+!**/gradle-wrapper.jar
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+.cxx/
+captures/
+*.hprof
+*.keystore
+*.jks
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# IDE and OS
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Kotlin compiler cache
+.kotlin/
+
+# Database backups made by infra/scripts/backup.sh
+infra/backups/
+
+# Generated / local noise
+dontlook.txt

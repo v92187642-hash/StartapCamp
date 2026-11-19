@@ -1,0 +1,361 @@
+asyncapi: 3.0.0
+info:
+  title: Отметка — events
+  version: 0.1.0
+  description: |
+    Events `core` publishes to RabbitMQ and `notifier` consumes. Source of
+    truth: change this file first, then the code.
+
+    Rules for every event:
+    - Each message is a JSON envelope with `eventId`, `type`, `occurredAt` and
+      `data`. The AMQP `message_id` property equals `eventId` and
+      `content_type` is `application/json`.
+    - A consumer must tolerate the same message arriving twice and messages
+      arriving out of order.
+    - `core` publishes only after its database transaction commits, and keeps
+      trying until the broker confirms the message. A message sent again has
+      the same `eventId`.
+    - Payloads carry ids and times only: no labels, no health data.
+
+    Topology: one durable topic exchange, `otmetka.events`, declared by the
+    publisher. The message `type` is also the routing key. Each consumer
+    declares and binds its own durable queue. `notifier` uses
+    `notifier.events`, with rejected messages dead-lettered through the
+    exchange `otmetka.events.dlx` into the queue `notifier.events.dlq`.
+
+servers:
+  local:
+    host: localhost:5672
+    protocol: amqp
+    description: RabbitMQ from `infra/docker-compose.yml`
+
+channels:
+  planChanged:
+    address: plan.changed
+    description: Routing key `plan.changed` on the exchange `otmetka.events`
+    messages:
+      planChanged:
+        $ref: "#/components/messages/PlanChanged"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: otmetka.events
+          type: topic
+          durable: true
+  entryMarked:
+    address: entry.marked
+    description: Routing key `entry.marked` on the exchange `otmetka.events`
+    messages:
+      entryMarked:
+        $ref: "#/components/messages/EntryMarked"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: otmetka.events
+          type: topic
+          durable: true
+
+  deviceRegistered:
+    address: device.registered
+    description: Routing key `device.registered` on the exchange `otmetka.events`
+    messages:
+      deviceRegistered:
+        $ref: "#/components/messages/DeviceRegistered"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: otmetka.events
+          type: topic
+          durable: true
+
+  planDeleted:
+    address: plan.deleted
+    description: Routing key `plan.deleted` on the exchange `otmetka.events`
+    messages:
+      planDeleted:
+        $ref: "#/components/messages/PlanDeleted"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: otmetka.events
+          type: topic
+          durable: true
+  userDeleted:
+    address: user.deleted
+    description: Routing key `user.deleted` on the exchange `otmetka.events`
+    messages:
+      userDeleted:
+        $ref: "#/components/messages/UserDeleted"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: otmetka.events
+          type: topic
+          durable: true
+
+operations:
+  publishPlanChanged:
+    action: send
+    summary: "`core` publishes when a plan, its items or its shares change"
+    channel:
+      $ref: "#/channels/planChanged"
+  publishEntryMarked:
+    action: send
+    summary: "`core` publishes when an entry is marked, corrected or a mark is undone"
+    channel:
+      $ref: "#/channels/entryMarked"
+
+  publishDeviceRegistered:
+    action: send
+    summary: "`core` publishes when a client registers a push token"
+    channel:
+      $ref: "#/channels/deviceRegistered"
+
+  publishPlanDeleted:
+    action: send
+    summary: "`core` publishes when a plan is deleted; consumers forget everything about it"
+    channel:
+      $ref: "#/channels/planDeleted"
+  publishUserDeleted:
+    action: send
+    summary: "`core` publishes when an account is deleted; consumers forget the user's data"
+    channel:
+      $ref: "#/channels/userDeleted"
+
+components:
+  messages:
+    PlanChanged:
+      name: plan.changed
+      title: Plan changed
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/PlanChangedEvent"
+      examples:
+        - payload:
+            eventId: 6f1c0f0e-8f0b-4a53-9a0e-0d8f5b9d5a11
+            type: plan.changed
+            occurredAt: "2026-10-09T06:00:00Z"
+            data:
+              planId: 0b0f5a52-7d0e-4c59-8c9c-0c7f3a3f1b01
+              version: 3
+              timezone: Asia/Yekaterinburg
+              entries:
+                - entryId: 4c6f7b1a-2f0f-4a40-9e3b-7b7f0e2d9c02
+                  dueAt: "2026-10-10T03:00:00Z"
+              recipients:
+                - 9a1d2c3b-4e5f-4a6b-8c7d-0e1f2a3b4c03
+    EntryMarked:
+      name: entry.marked
+      title: Entry marked or unmarked
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/EntryMarkedEvent"
+      examples:
+        - payload:
+            eventId: 1d2c3b4a-5e6f-4a7b-8c9d-0e1f2a3b4c04
+            type: entry.marked
+            occurredAt: "2026-10-10T03:02:11Z"
+            data:
+              entryId: 4c6f7b1a-2f0f-4a40-9e3b-7b7f0e2d9c02
+              planId: 0b0f5a52-7d0e-4c59-8c9c-0c7f3a3f1b01
+              status: marked
+              markedAt: "2026-10-10T03:02:00Z"
+
+    DeviceRegistered:
+      name: device.registered
+      title: Push token registered
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/DeviceRegisteredEvent"
+      examples:
+        - payload:
+            eventId: 7a1d2c3b-4e5f-4a6b-8c7d-0e1f2a3b4c05
+            type: device.registered
+            occurredAt: "2026-10-10T03:02:11Z"
+            data:
+              userId: 9a1d2c3b-4e5f-4a6b-8c7d-0e1f2a3b4c03
+              provider: rustore
+              token: example-push-token
+
+    PlanDeleted:
+      name: plan.deleted
+      title: Plan deleted
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/PlanDeletedEvent"
+    UserDeleted:
+      name: user.deleted
+      title: Account deleted
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/UserDeletedEvent"
+
+  schemas:
+    PlanDeletedEvent:
+      type: object
+      required: [eventId, type, occurredAt, data]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          const: plan.deleted
+        occurredAt:
+          type: string
+          format: date-time
+        data:
+          type: object
+          description: |
+            Final for the plan: a `plan.changed` for the same plan that arrives
+            later must be ignored.
+          required: [planId]
+          properties:
+            planId:
+              type: string
+              format: uuid
+
+    UserDeletedEvent:
+      type: object
+      required: [eventId, type, occurredAt, data]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          const: user.deleted
+        occurredAt:
+          type: string
+          format: date-time
+        data:
+          type: object
+          required: [userId]
+          properties:
+            userId:
+              type: string
+              format: uuid
+
+    DeviceRegisteredEvent:
+      type: object
+      required: [eventId, type, occurredAt, data]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          const: device.registered
+        occurredAt:
+          type: string
+          format: date-time
+        data:
+          type: object
+          description: |
+            A token belongs to one user at a time: registering it for another
+            user moves it.
+          required: [userId, provider, token]
+          properties:
+            userId:
+              type: string
+              format: uuid
+            provider:
+              type: string
+              enum: [fcm, rustore]
+            token:
+              type: string
+
+    PlanChangedEvent:
+      type: object
+      required: [eventId, type, occurredAt, data]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          const: plan.changed
+        occurredAt:
+          type: string
+          format: date-time
+        data:
+          $ref: "#/components/schemas/PlanSnapshot"
+
+    PlanSnapshot:
+      type: object
+      description: |
+        Full snapshot, not a difference: it replaces everything the consumer
+        knows about the plan's upcoming entries. A snapshot whose `version` is
+        not greater than the one already stored must be ignored.
+      required: [planId, version, timezone, entries, recipients]
+      properties:
+        planId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+        timezone:
+          type: string
+          description: IANA time zone name of the plan
+        entries:
+          type: array
+          description: |
+            Every entry that is still `planned` and is due later than 24 hours
+            before the snapshot was built. Recently overdue entries are
+            included so that a consumer waiting to alert on them keeps them.
+          items:
+            type: object
+            required: [entryId, dueAt]
+            properties:
+              entryId:
+                type: string
+                format: uuid
+              dueAt:
+                type: string
+                format: date-time
+                description: Scheduled time of the entry, UTC
+        recipients:
+          type: array
+          description: User ids of relatives with an accepted share on the plan
+          items:
+            type: string
+            format: uuid
+
+    EntryMarkedEvent:
+      type: object
+      required: [eventId, type, occurredAt, data]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          const: entry.marked
+        occurredAt:
+          type: string
+          format: date-time
+        data:
+          type: object
+          required: [entryId, planId, status]
+          properties:
+            entryId:
+              type: string
+              format: uuid
+            planId:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [planned, marked]
+              description: "`planned` means a mark was undone"
+            markedAt:
+              type: string
+              format: date-time
+              description: Present when `status` is `marked`

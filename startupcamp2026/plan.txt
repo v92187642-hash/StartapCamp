@@ -1,0 +1,59 @@
+PLAN: market analysis + accelerator pitch deck
+Topic 04 (ТИСБИ catalogue): «Дневник выполнения назначений врача»
+Saved: 2026-10-08
+
+1. RESEARCH (web, sources kept for the last slide)
+- Problem size: adherence data for Russia and globally (WHO, Russian clinical
+  publications), chronic-disease prevalence, polypharmacy in older patients.
+- Market: Russian digital health / mHealth market size, pharmacy market and
+  e-pharmacy share (DSM Group, AlphaRM, RNC Pharma), smartphone penetration
+  by age group.
+- Competitors: Russian-available reminder apps (MyTherapy, Medisafe and local
+  ones), pharmacy ecosystems (Аптека.ру, ЕАПТЕКА, Здравсити, Ютека), health
+  platforms (СберЗдоровье, Госуслуги/ЕМИАС), plus the "do nothing"
+  alternatives: alarm clock, pill box, paper.
+- Russian specifics:
+  * 152-ФЗ: health data is a special category and must be stored in Russia.
+  * Advertising law: prescription-drug ads to consumers are banned, and online
+    ads need labelling (erid) - this directly limits the banner idea.
+  * Medical-device rules: when software has to be registered with
+    Росздравнадзор, and how to stay outside that.
+  * Distribution and payments: RuStore, СБП, limits on App Store / Google Play
+    billing.
+  * Online sale of medicines: what is and isn't allowed for prescription drugs.
+
+2. DECK STRUCTURE (about 13 slides, in Russian)
+ 1. Title
+ 2. Problem
+ 3. Target audience: one primary segment, plus secondary ones
+ 4. Solution and a product mock-up
+ 5. Value to the customer
+ 6. Market analysis (TAM/SAM/SOM)
+ 7. Competitors: comparison table and positioning
+ 8. Russian market specifics and regulation
+ 9. Monetization: in-app ad banner, premium features, pharmacy referral links,
+    plus B2B (clinics, insurers/ДМС, employers, pharma patient-support
+    programmes), each rated for feasibility
+10. Go-to-market channels
+11. Main risk and how we test it
+12. Roadmap and the ask
+13. Sources
+
+3. ADDITIONS
+- Caregiver angle: an adult child tracking a parent's plan as the paying user,
+  since patients themselves rarely pay.
+- Unit-economics sketch: every assumption labelled as a hypothesis.
+- Honest numbers: only sourced figures; where none exist, the slide says
+  "to be verified".
+- Validation plan: the interview plan and success criterion from the
+  catalogue's seven answers.
+
+4. DELIVERY
+- Slide deck on claude.ai with a private link; exportable to .pptx or PDF.
+
+DEFAULTS (unless changed)
+- Product name: a working placeholder name.
+- Team slide: none (no information about the team).
+- Ask: an accelerator place and a pilot partner, no specific sum.
+- Scope: the fuller product (reminders plus diary), with the catalogue's narrow
+  "diary only" version shown as the MVP.

@@ -1,0 +1,139 @@
+# The whole local environment:
+#
+#   cp infra/.env.example infra/.env   # then fill every required secret
+#   docker compose -f infra/docker-compose.yml up --build
+#
+# No `ports:` — nothing is published on the host. Containers talk on the
+# compose network by service name. Dokploy (or another proxy) should target
+# `web` port 80.
+#
+# Volumes are named Docker volumes (`driver: local`), not bind mounts of a
+# host path. `postgres-data:` with no extra keys (some UIs show this as
+# `null`) means "let Docker create and own the volume".
+name: otmetka
+
+services:
+  postgres:
+    build: ./postgres
+    environment:
+      POSTGRES_DB: otmetka
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
+      CORE_DB_PASSWORD: ${CORE_DB_PASSWORD:?set CORE_DB_PASSWORD in infra/.env}
+      NOTIFIER_DB_PASSWORD: ${NOTIFIER_DB_PASSWORD:?set NOTIFIER_DB_PASSWORD in infra/.env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "otmetka"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-otmetka}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in infra/.env}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  core:
+    build: ../services/core
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-jdbc:postgresql://postgres:5432/otmetka}
+      DATABASE_USER: ${DATABASE_USER:-core}
+      DATABASE_PASSWORD: ${CORE_DB_PASSWORD:?set CORE_DB_PASSWORD in infra/.env}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:-rabbitmq}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:-5672}
+      RABBITMQ_USER: ${RABBITMQ_USER:-otmetka}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in infra/.env}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in infra/.env}
+      WEB_BASE_URL: ${WEB_BASE_URL:?set WEB_BASE_URL in infra/.env}
+      NOTIFIER_URL: ${NOTIFIER_URL:-http://notifier:8000}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET in infra/.env}
+      PREMIUM_ENFORCED: ${PREMIUM_ENFORCED:-true}
+      SEED_TEST_ACCOUNTS: ${SEED_TEST_ACCOUNTS:-false}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-false}
+      MAIL_SSL: ${MAIL_SSL:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@otmetka.local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  notifier:
+    build: ../services/notifier
+    environment:
+      DATABASE_URL: postgresql+psycopg://notifier:${NOTIFIER_DB_PASSWORD:?set NOTIFIER_DB_PASSWORD in infra/.env}@postgres:5432/otmetka
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-otmetka}:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in infra/.env}@rabbitmq:5672/
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?set INTERNAL_SECRET in infra/.env}
+      ALERT_GRACE_MINUTES: ${ALERT_GRACE_MINUTES:-30}
+      ALERT_POLL_SECONDS: ${ALERT_POLL_SECONDS:-30}
+      PUSH_DRY_RUN: ${PUSH_DRY_RUN:-true}
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      RUSTORE_PROJECT_ID: ${RUSTORE_PROJECT_ID:-}
+      RUSTORE_SERVICE_TOKEN: ${RUSTORE_SERVICE_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      core:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+  redis-data:
+    driver: local

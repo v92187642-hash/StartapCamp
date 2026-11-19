@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Отметка</string>
+    <string name="app_lead">Дневник выполнения назначений врача</string>
+    <string name="loading">Загрузка…</string>
+    <string name="retry">Повторить</string>
+    <string name="back">Назад</string>
+    <string name="ok">Готово</string>
+    <string name="cancel">Отмена</string>
+    <string name="back_to_diary">К дневнику</string>
+    <string name="error_network">Нет связи с сервером. Проверьте интернет и попробуйте ещё раз</string>
+    <string name="error_unknown">Что-то пошло не так. Попробуйте ещё раз</string>
+
+    <!-- Login -->
+    <string name="login_email">Электронная почта</string>
+    <string name="login_password">Пароль</string>
+    <string name="login_password_repeat">Пароль ещё раз</string>
+    <string name="login_password_hint">Не короче 8 символов.</string>
+    <string name="login_password_mismatch">Пароли не совпадают</string>
+    <string name="login_title">Вход</string>
+    <string name="login_enter">Войти</string>
+    <string name="login_to_register">Создать аккаунт</string>
+    <string name="register_title">Регистрация</string>
+    <string name="register_enter">Зарегистрироваться</string>
+    <string name="register_to_login">У меня уже есть аккаунт</string>
+    <string name="logout">Выйти</string>
+    <string name="logout_all">Выйти на всех устройствах</string>
+
+    <!-- Consent. A draft: a lawyer must review it before launch (milestone M5). -->
+    <string name="consent_title">Согласие на обработку данных</string>
+    <string name="consent_intro">Чтобы вести дневник, нам нужно ваше согласие на обработку персональных данных.</string>
+    <string name="consent_1">Мы храним адрес вашей почты, ваши планы и отметки о выполнении назначений.</string>
+    <string name="consent_2">Мы не храним названия лекарств, дозировки и диагнозы. Пожалуйста, не вводите их.</string>
+    <string name="consent_3">Ваш дневник видят только вы и те, кого вы сами пригласили.</string>
+    <string name="consent_4">Сервис не даёт медицинских советов. По всем вопросам лечения обращайтесь к врачу.</string>
+    <string name="consent_5">Вы можете отозвать согласие и попросить удалить данные.</string>
+    <string name="consent_accept">Даю согласие</string>
+
+    <!-- Plans -->
+    <string name="plans_title">Планы</string>
+    <string name="plans_empty">Пока нет ни одного плана. Создайте план по назначениям врача.</string>
+    <string name="plans_new">Новый план</string>
+    <string name="plans_watching">Вы наблюдаете</string>
+    <string name="plans_dates">%1$s — %2$s</string>
+    <string name="plans_refresh">Обновить</string>
+    <string name="offline_copy">Нет связи. Показаны сохранённые данные.</string>
+
+    <!-- Day view -->
+    <string name="day_previous">Предыдущий день</string>
+    <string name="day_next">Следующий день</string>
+    <string name="day_empty">На этот день назначений нет.</string>
+    <string name="day_viewer">Вы наблюдаете. Отмечать может только владелец плана.</string>
+    <string name="entry_planned">Запланировано</string>
+    <string name="entry_marked">Отмечено в %1$s</string>
+    <string name="entry_no_mark">Нет отметки</string>
+    <string name="entry_pending">Ожидает отправки</string>
+    <string name="entry_mark">Отметить</string>
+    <string name="entry_unmark">Снять отметку</string>
+    <string name="entry_correct">Изменить время</string>
+    <string name="entry_correct_future">Время отметки не может быть в будущем</string>
+    <string name="entry_question">Записать вопрос врачу</string>
+
+    <!-- New plan and plan items -->
+    <string name="new_plan_title">Новый план</string>
+    <string name="new_plan_name">Название (необязательно)</string>
+    <string name="new_plan_name_placeholder">План 1</string>
+    <string name="new_plan_name_hint">Не указывайте диагноз и названия лекарств.</string>
+    <string name="new_plan_starts">Начало</string>
+    <string name="new_plan_ends">Окончание</string>
+    <string name="new_plan_items_hint">Назначения называются по номерам, как в листе врача: «Назначение 1», «Назначение 2». Укажите, когда выполнять каждое.</string>
+    <string name="new_plan_create">Создать план</string>
+    <string name="new_plan_error_dates">Окончание не может быть раньше начала</string>
+    <string name="new_plan_error_days">Выберите хотя бы один день недели для каждого назначения</string>
+    <string name="items_title">Назначения</string>
+    <string name="item_number">Назначение %1$d</string>
+    <string name="item_time">Время</string>
+    <string name="item_days">Дни недели</string>
+    <string name="item_every_day">каждый день</string>
+    <string name="item_add">Добавить назначение</string>
+    <string name="item_remove">Убрать</string>
+    <string-array name="weekdays_short">
+        <item>Пн</item>
+        <item>Вт</item>
+        <item>Ср</item>
+        <item>Чт</item>
+        <item>Пт</item>
+        <item>Сб</item>
+        <item>Вс</item>
+    </string-array>
+
+    <!-- Plan settings: items and relatives -->
+    <string name="settings_open">Настройки плана</string>
+    <string name="settings_title">План</string>
+    <string name="settings_item">%1$s — %2$s, %3$s</string>
+    <string name="settings_add">Добавить</string>
+    <string name="settings_item_added">Добавлено: %1$s</string>
+    <string name="settings_invited">Приглашение отправлено на %1$s. Ссылка действует 7 дней.</string>
+    <string name="shares_title">Доступ близких</string>
+    <string name="shares_hint">Близкий человек увидит ваш дневник, но не сможет ничего в нём менять.</string>
+    <string name="share_accepted">Видит дневник</string>
+    <string name="share_pending">Приглашение отправлено</string>
+    <string name="share_close">Закрыть доступ</string>
+    <string name="share_cancel">Отменить приглашение</string>
+    <string name="share_email">Почта близкого человека</string>
+    <string name="share_invite">Пригласить</string>
+
+    <!-- Questions for the doctor and the report -->
+    <string name="questions_title">Вопросы врачу</string>
+    <string name="questions_hint">Запишите, о чём хотите спросить на приёме. Отметка не отвечает на вопросы и не даёт медицинских советов.</string>
+    <string name="questions_empty">Пока вопросов нет.</string>
+    <string name="questions_new">Новый вопрос</string>
+    <string name="questions_add">Записать вопрос</string>
+    <string name="question_written">Записан %1$s</string>
+    <string name="question_written_asked">Записан %1$s, задан</string>
+    <string name="question_asked">Задан</string>
+    <string name="question_not_asked">Ещё не задан</string>
+    <string name="question_delete">Удалить</string>
+    <string name="report_title">Отчёт для врача</string>
+    <string name="report_hint">Файл PDF: отметки по дням и список вопросов. Его можно распечатать или показать на приёме.</string>
+    <string name="report_download">Скачать отчёт (PDF)</string>
+    <string name="report_preparing">Готовим отчёт…</string>
+    <string name="report_saved">Отчёт сохранён.</string>
+
+    <!-- Account -->
+    <string name="account_title">Аккаунт</string>
+    <string name="account_email">Почта: %1$s</string>
+    <string name="account_premium_on">Подписка: активна</string>
+    <string name="account_premium_off">Подписка: нет</string>
+    <string name="account_delete_title">Удаление аккаунта</string>
+    <string name="account_delete_hint">Будут удалены ваш аккаунт, все ваши планы с отметками и вопросами, приглашения и ваш доступ к чужим планам. Восстановить данные будет нельзя.</string>
+    <string name="account_delete">Удалить аккаунт и все данные</string>
+    <string name="account_delete_confirm">Да, удалить навсегда</string>
+
+    <!-- Reminders -->
+    <string name="reminder_channel">Напоминания о назначениях</string>
+    <string name="reminder_text">Время по плану: %1$s</string>
+    <string name="reminder_mark">Отметить</string>
+    <string name="notifications_ask_title">Разрешите уведомления</string>
+    <string name="notifications_ask_text">Без этого разрешения напоминания о назначениях не появятся.</string>
+    <string name="notifications_allow">Разрешить</string>
+
+    <!-- Battery guide -->
+    <string name="battery_card_title">Чтобы напоминания приходили вовремя</string>
+    <string name="battery_card_text">Телефон может останавливать приложение ради экономии заряда. Тогда напоминания опаздывают или не приходят.</string>
+    <string name="battery_card_open">Как настроить</string>
+    <string name="battery_title">Настройка телефона</string>
+    <string name="battery_intro">Сделайте два шага, чтобы телефон не мешал напоминаниям.</string>
+    <string name="battery_step1_title">1. Снимите ограничение батареи</string>
+    <string name="battery_step1_text">Нажмите кнопку ниже, найдите в списке «Отметка» и выберите «Не экономить» или «Без ограничений».</string>
+    <string name="battery_open_settings">Открыть настройки батареи</string>
+    <string name="battery_step2_title">2. Разрешите работу в фоне</string>
+    <string name="battery_xiaomi">Xiaomi, Redmi, POCO: Настройки → Приложения → Все приложения → Отметка. Включите «Автозапуск». В разделе «Контроль активности» выберите «Нет ограничений».</string>
+    <string name="battery_huawei">Huawei, Honor: Настройки → Батарея → Запуск приложений → Отметка. Выключите «Автоматическое управление» и включите все три переключателя: автозапуск, косвенный запуск, работа в фоне.</string>
+    <string name="battery_samsung">Samsung: Настройки → Приложения → Отметка → Батарея → «Не ограничено». Затем Настройки → Обслуживание устройства → Батарея → Ограничения в фоновом режиме: убедитесь, что Отметки нет в списке «Приложения в спящем режиме».</string>
+    <string name="battery_other">Другие телефоны: Настройки → Приложения → Отметка → Батарея → «Без ограничений».</string>
+    <string name="battery_open_app_settings">Открыть настройки приложения</string>
+    <string name="battery_done">Готово</string>
+</resources>
